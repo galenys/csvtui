@@ -161,18 +161,20 @@ impl CSVView {
                 .into_iter()
                 .chain(
                     std::iter::repeat(Constraint::Percentage(
-                        (100 / (self.model.grid[0].len() - 1)) as u16,
+                        (100 / (self.model.grid[0].len())) as u16,
                     ))
-                    .take(self.model.grid[0].len() - 1),
+                    .take(self.model.grid[0].len()),
                 )
                 .collect::<Vec<_>>();
 
-            let header_cells = self.model.headers.iter().map(|h| {
+            let header_cells = std::iter::once(
+                Cell::from("").style(Style::default().add_modifier(Modifier::BOLD)),
+            )
+            .chain(self.model.headers.iter().map(|h| {
                 Cell::from(h.clone()).style(Style::default().add_modifier(Modifier::BOLD))
-            });
+            }));
             let header_row = Row::new(header_cells).height(1);
 
-            // Create rows with custom styling
             let rows = self.model.grid.iter().enumerate().map(|(i, item)| {
                 let row_number_cell =
                     Cell::from((i + 1).to_string()).style(Style::default().fg(Color::White));
@@ -194,13 +196,11 @@ impl CSVView {
                 Row::new(cells).height(1)
             });
 
-            // Create the table
             let table = Table::new(rows, &constraints)
                 .header(header_row)
-                .block(Block::default().borders(Borders::ALL).title("CSV Table"))
+                .block(Block::default().borders(Borders::ALL))
                 .column_spacing(1);
 
-            // Render the table
             f.render_widget(table, size);
         });
     }
