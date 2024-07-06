@@ -14,8 +14,8 @@ use std::io::{stdout, Result};
 
 #[derive(Debug, PartialEq)]
 enum AppState {
-    Navigating(usize, usize), // Holds the current row and column
-    Editing(usize, usize),    // Holds the row and column being edited
+    Navigating(usize, usize),
+    Editing(usize, usize),
 }
 
 pub struct CSVModel {
@@ -139,6 +139,18 @@ impl CSVModel {
                     if selected_col < self.grid[selected_row].len() - 1 {
                         self.state = AppState::Navigating(selected_row, selected_col + 1);
                     }
+                }
+                KeyCode::Char('g') => {
+                    self.state = AppState::Navigating(0, selected_col);
+                }
+                KeyCode::Char('G') => {
+                    self.state = AppState::Navigating(self.grid.len() - 1, selected_col);
+                }
+                KeyCode::Char('I') => {
+                    self.state = AppState::Navigating(selected_row, 0);
+                }
+                KeyCode::Char('A') => {
+                    self.state = AppState::Navigating(selected_row, self.headers.len() - 1);
                 }
                 KeyCode::Char('u') => {
                     self.restore_last_state();

@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let file_path = &args[1];
     let terminal: Terminal<CrosstermBackend<std::io::Stdout>> =
         Terminal::new(CrosstermBackend::new(std::io::stdout()))?;
-    let mut csv_view = csv_structs::CSVView::new(terminal, file_path);
-    csv_view.run()?;
+    let mut tui_app = csv_structs::CSVView::new(terminal, file_path);
+    tui_app.run()?;
     Ok(())
 }
