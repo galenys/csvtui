@@ -1,4 +1,4 @@
-use crossterm::event::{self, KeyCode};
+use crossterm::event::{self, KeyCode, KeyEvent};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
@@ -9,7 +9,7 @@ use ratatui::layout::Constraint;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, Cell, Row, Table};
 use ratatui::Terminal;
-use std::cmp::max;
+use std::cmp::{max, min};
 use std::fs::File;
 use std::io::{stdout, Result};
 
@@ -158,6 +158,19 @@ impl CSVModel {
                         self.state = AppState::Navigating(selected_row, selected_col + 1);
                     }
                 }
+                KeyCode::Char('}') => {
+                    self.state = AppState::Navigating(
+                        min(self.grid.len() - 1, selected_row + 5),
+                        selected_col,
+                    )
+                }
+                KeyCode::Char('{') => {
+                    if selected_row >= 5 {
+                        self.state = AppState::Navigating(max(0, selected_row - 5), selected_col)
+                    } else {
+                        self.state = AppState::Navigating(0, selected_col)
+                    }
+                }
                 KeyCode::Char('g') => {
                     self.state = AppState::Navigating(0, selected_col);
                 }
@@ -211,6 +224,10 @@ impl CSVModel {
                 }
 
                 // EDITING
+                KeyCode::Char('i') => {
+                    self.save_current_state();
+                    self.state = AppState::Editing(selected_row, selected_col);
+                }
                 KeyCode::Enter => {
                     self.save_current_state();
                     self.state = AppState::Editing(selected_row, selected_col);
@@ -279,13 +296,14 @@ impl CSVView {
 
     pub fn handle_keyboard_input(&mut self, key: KeyCode) {
         self.model.handle_keyboard_input(key);
+        self.render_tui();
     }
 
     pub fn render_tui(&mut self) {
         let (selected_row, selected_col) = self.model.get_current_row_and_col();
         let _ = self.terminal.draw(|f| {
             let size = f.size();
-            self.scroll_offset = max(0, selected_row as i32 - size.height as i32 + 3) as usize;
+            self.scroll_offset = max(0, selected_row as i32 - size.height as i32 + 10) as usize;
 
             let constraints = vec![Constraint::Length(5)]
                 .into_iter()
@@ -317,11 +335,7 @@ impl CSVView {
                 .grid
                 .iter()
                 .enumerate()
-                .skip(if self.scroll_offset > 0 {
-                    self.scroll_offset + 5
-                } else {
-                    0
-                })
+                .skip(self.scroll_offset)
                 .map(|(i, item)| {
                     let row_number_cell =
                         Cell::from((i + 1).to_string()).style(Style::default().fg(Color::White));
@@ -359,11 +373,9 @@ impl CSVView {
         self.terminal.clear()?;
         while self.model.running {
             self.render_tui();
-            if event::poll(std::time::Duration::from_millis(16))? {
-                if let event::Event::Key(key) = event::read()? {
-                    if key.kind == event::KeyEventKind::Press {
-                        self.handle_keyboard_input(key.code);
-                    }
+            if let event::Event::Key(KeyEvent { code, kind, .. }) = event::read()? {
+                if kind == event::KeyEventKind::Press {
+                    self.handle_keyboard_input(code);
                 }
             }
         }
