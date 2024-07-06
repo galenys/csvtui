@@ -25,7 +25,7 @@ pub struct CSVModel {
     grid: Vec<Vec<String>>,
     state: AppState,
     running: bool,
-    working_states: Vec<Vec<Vec<String>>>,
+    working_states: Vec<(Vec<String>, Vec<Vec<String>>)>,
 }
 
 impl CSVModel {
@@ -80,14 +80,40 @@ impl CSVModel {
         self.grid.remove(row);
     }
 
+    fn insert_empty_col_after(&mut self, col: usize) {
+        self.save_current_state();
+        self.headers.insert(col + 1, String::new());
+        for row in self.grid.iter_mut() {
+            row.insert(col + 1, String::new());
+        }
+    }
+
+    fn insert_empty_col_before(&mut self, col: usize) {
+        self.save_current_state();
+        self.headers.insert(col, String::new());
+        for row in self.grid.iter_mut() {
+            row.insert(col, String::new());
+        }
+    }
+
+    fn delete_col(&mut self, col: usize) {
+        self.save_current_state();
+        self.headers.remove(col);
+        for row in self.grid.iter_mut() {
+            row.remove(col);
+        }
+    }
+
     fn save_current_state(&mut self) {
-        let current_state = self.grid.clone();
-        self.working_states.push(current_state);
+        let current_headers = self.headers.clone();
+        let current_grid = self.grid.clone();
+        self.working_states.push((current_headers, current_grid));
     }
 
     fn restore_last_state(&mut self) {
-        if let Some(last_state) = self.working_states.pop() {
-            self.grid = last_state;
+        if let Some((last_headers, last_grid)) = self.working_states.pop() {
+            self.headers = last_headers;
+            self.grid = last_grid;
             if self.get_current_row_and_col().0 >= self.grid.len() {
                 self.state = AppState::Navigating(self.grid.len() - 1, 0);
             }
@@ -162,6 +188,22 @@ impl CSVModel {
                     self.delete_row(selected_row);
                     if selected_row == self.grid.len() {
                         self.state = AppState::Navigating(selected_row - 1, selected_col);
+                    } else {
+                        self.state = AppState::Navigating(selected_row, selected_col);
+                    }
+                }
+                KeyCode::Char('n') => {
+                    self.insert_empty_col_after(selected_row);
+                    self.state = AppState::Navigating(selected_row, selected_col + 1);
+                }
+                KeyCode::Char('N') => {
+                    self.insert_empty_col_before(selected_row);
+                    self.state = AppState::Navigating(selected_row, selected_col);
+                }
+                KeyCode::Char('D') => {
+                    self.delete_col(selected_col);
+                    if selected_col == self.grid.len() {
+                        self.state = AppState::Navigating(selected_row, selected_col - 1);
                     } else {
                         self.state = AppState::Navigating(selected_row, selected_col);
                     }
