@@ -5,7 +5,9 @@ use crossterm::terminal::{
 use crossterm::ExecutableCommand;
 use csv::{Reader, Writer};
 use ratatui::backend::CrosstermBackend;
-use ratatui::widgets::Paragraph;
+use ratatui::layout::Constraint;
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::widgets::{Block, Borders, Cell, Row, Table};
 use ratatui::Terminal;
 use std::fs::File;
 use std::io::{stdout, Result};
@@ -65,7 +67,6 @@ impl CSVModel {
 
     fn save_changes_to_file(&self) -> Result<()> {
         let file = File::create(&self.file_path)?;
-        // TODO: may need to erase the file first, we'll see
         let mut wtr = Writer::from_writer(file);
 
         wtr.write_record(self.headers.iter())?;
@@ -143,23 +144,49 @@ impl CSVView {
     }
 
     pub fn render_tui(&mut self) {
-        let _ = self.terminal.draw(|frame| {
-            let chunks = frame.size();
-            let (selected_row, selected_col) = self.model.get_current_row_and_col();
-            let mut text = String::new();
-            for (i, row) in self.model.grid.iter().enumerate() {
-                for (j, col) in row.iter().enumerate() {
+        let (selected_row, selected_col) = self.model.get_current_row_and_col();
+        let _ = self.terminal.draw(|f| {
+            let size = f.size();
+
+            let constraints = vec![Constraint::Length(5)]
+                .into_iter()
+                .chain(
+                    std::iter::repeat(Constraint::Percentage(
+                        (100 / (self.model.grid[0].len() - 1)) as u16,
+                    ))
+                    .take(self.model.grid[0].len() - 1),
+                )
+                .collect::<Vec<_>>();
+
+            // Create header cells with custom styling
+            let header_cells = self.model.headers.iter().map(|h| {
+                Cell::from(h.clone()).style(Style::default().add_modifier(Modifier::BOLD))
+            });
+            let header_row = Row::new(header_cells).height(1);
+
+            // Create rows with custom styling
+            let rows = self.model.grid.iter().enumerate().map(|(i, item)| {
+                let row_number_cell =
+                    Cell::from((i + 1).to_string()).style(Style::default().fg(Color::White));
+                let cells = item.iter().enumerate().map(|(j, c)| {
+                    let mut cell = Cell::from(c.clone());
                     if i == selected_row && j == selected_col {
-                        text.push_str(&format!("{}*", col));
-                    } else {
-                        text.push_str(col);
+                        cell = cell.style(Style::default().bg(Color::Blue));
                     }
-                    text.push_str("\t");
-                }
-                text.push_str("\n");
-            }
-            let paragraph = Paragraph::new(text.as_str());
-            frame.render_widget(paragraph, chunks);
+                    cell
+                });
+                let cells = std::iter::once(row_number_cell).chain(cells);
+                Row::new(cells).height(1)
+            });
+
+            // Create the table
+            let table = Table::new(rows, &constraints)
+                .header(header_row)
+                .block(Block::default().borders(Borders::ALL).title("CSV Table"))
+                .column_spacing(1);
+
+            // Render the table
+            f.render_widget(table, size);
         });
     }
 
