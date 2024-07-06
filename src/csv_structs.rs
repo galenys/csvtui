@@ -71,6 +71,20 @@ impl CSVModel {
         }
     }
 
+    fn insert_empty_row_after(&mut self, row: usize) {
+        let empty_row = vec![String::new(); self.headers.len()];
+        self.grid.insert(row + 1, empty_row);
+    }
+
+    fn insert_empty_row_before(&mut self, row: usize) {
+        let empty_row = vec![String::new(); self.headers.len()];
+        self.grid.insert(row, empty_row);
+    }
+
+    fn delete_row(&mut self, row: usize) {
+        self.grid.remove(row);
+    }
+
     fn save_changes_to_file(&self) -> Result<()> {
         let file = File::create(&self.file_path)?;
         let mut wtr = Writer::from_writer(file);
@@ -107,7 +121,27 @@ impl CSVModel {
                         self.state = AppState::Navigating(selected_row, selected_col + 1);
                     }
                 }
+                KeyCode::Char('o') => {
+                    self.insert_empty_row_after(selected_row);
+                    self.state = AppState::Editing(selected_row + 1, selected_col);
+                }
+                KeyCode::Char('O') => {
+                    self.insert_empty_row_before(selected_row);
+                    self.state = AppState::Editing(selected_row, selected_col);
+                }
+                KeyCode::Char('d') => {
+                    self.delete_row(selected_row);
+                    if selected_row == self.grid.len() {
+                        self.state = AppState::Navigating(selected_row - 1, selected_col);
+                    } else {
+                        self.state = AppState::Navigating(selected_row, selected_col);
+                    }
+                }
                 KeyCode::Enter => {
+                    self.state = AppState::Editing(selected_row, selected_col);
+                }
+                KeyCode::Char('r') => {
+                    self.grid[selected_row][selected_col] = String::new();
                     self.state = AppState::Editing(selected_row, selected_col);
                 }
                 KeyCode::Char('q') => {
