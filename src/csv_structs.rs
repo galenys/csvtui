@@ -9,6 +9,7 @@ use ratatui::layout::Constraint;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, Cell, Row, Table};
 use ratatui::Terminal;
+use std::cmp::max;
 use std::fs::File;
 use std::io::{stdout, Result};
 
@@ -193,11 +194,11 @@ impl CSVModel {
                     }
                 }
                 KeyCode::Char('n') => {
-                    self.insert_empty_col_after(selected_row);
+                    self.insert_empty_col_after(selected_col);
                     self.state = AppState::Navigating(selected_row, selected_col + 1);
                 }
                 KeyCode::Char('N') => {
-                    self.insert_empty_col_before(selected_row);
+                    self.insert_empty_col_before(selected_col);
                     self.state = AppState::Navigating(selected_row, selected_col);
                 }
                 KeyCode::Char('D') => {
@@ -261,6 +262,7 @@ impl CSVModel {
 pub struct CSVView {
     terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
     model: CSVModel,
+    scroll_offset: usize,
 }
 
 impl CSVView {
@@ -271,6 +273,7 @@ impl CSVView {
         CSVView {
             terminal,
             model: CSVModel::build_from_file_path(file_path).unwrap(),
+            scroll_offset: 0,
         }
     }
 
@@ -282,6 +285,7 @@ impl CSVView {
         let (selected_row, selected_col) = self.model.get_current_row_and_col();
         let _ = self.terminal.draw(|f| {
             let size = f.size();
+            self.scroll_offset = max(0, selected_row as i32 - size.height as i32 + 3) as usize;
 
             let constraints = vec![Constraint::Length(5)]
                 .into_iter()
@@ -308,27 +312,37 @@ impl CSVView {
             }));
             let header_row = Row::new(header_cells).height(1);
 
-            let rows = self.model.grid.iter().enumerate().map(|(i, item)| {
-                let row_number_cell =
-                    Cell::from((i + 1).to_string()).style(Style::default().fg(Color::White));
-                let cells = item.iter().enumerate().map(|(j, c)| {
-                    let mut cell = Cell::from(c.clone());
-                    if i == selected_row && j == selected_col {
-                        match self.model.state {
-                            AppState::Navigating(_, _) => {
-                                cell = cell.style(Style::default().bg(Color::Blue));
+            let rows = self
+                .model
+                .grid
+                .iter()
+                .enumerate()
+                .skip(if self.scroll_offset > 0 {
+                    self.scroll_offset + 5
+                } else {
+                    0
+                })
+                .map(|(i, item)| {
+                    let row_number_cell =
+                        Cell::from((i + 1).to_string()).style(Style::default().fg(Color::White));
+                    let cells = item.iter().enumerate().map(|(j, c)| {
+                        let mut cell = Cell::from(c.clone());
+                        if i == selected_row && j == selected_col {
+                            match self.model.state {
+                                AppState::Navigating(_, _) => {
+                                    cell = cell.style(Style::default().bg(Color::Blue));
+                                }
+                                AppState::Editing(_, _) => {
+                                    cell = cell.style(Style::default().bg(Color::Green));
+                                }
+                                _ => {}
                             }
-                            AppState::Editing(_, _) => {
-                                cell = cell.style(Style::default().bg(Color::Green));
-                            }
-                            _ => {}
                         }
-                    }
-                    cell
+                        cell
+                    });
+                    let cells = std::iter::once(row_number_cell).chain(cells);
+                    Row::new(cells).height(1)
                 });
-                let cells = std::iter::once(row_number_cell).chain(cells);
-                Row::new(cells).height(1)
-            });
 
             let table = Table::new(rows, &constraints)
                 .header(header_row)
