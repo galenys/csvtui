@@ -16,6 +16,7 @@ use std::io::{stdout, Result};
 enum AppState {
     Navigating(usize, usize),
     Editing(usize, usize),
+    EditingHeader(usize),
 }
 
 pub struct CSVModel {
@@ -58,18 +59,7 @@ impl CSVModel {
         match self.state {
             AppState::Navigating(row, col) => (row, col),
             AppState::Editing(row, col) => (row, col),
-        }
-    }
-
-    fn append_char_to_record(&mut self, c: char) {
-        if let AppState::Editing(row, col) = self.state {
-            self.grid[row][col].push(c);
-        }
-    }
-
-    fn pop_char_from_record(&mut self) {
-        if let AppState::Editing(row, col) = self.state {
-            self.grid[row][col].pop();
+            AppState::EditingHeader(col) => (0, col),
         }
     }
 
@@ -120,6 +110,7 @@ impl CSVModel {
     fn handle_keyboard_input(&mut self, key: KeyCode) {
         match self.state {
             AppState::Navigating(selected_row, selected_col) => match key {
+                // NAVIGATION
                 KeyCode::Char('j') => {
                     if selected_row < self.grid.len() - 1 {
                         self.state = AppState::Navigating(selected_row + 1, selected_col);
@@ -152,9 +143,13 @@ impl CSVModel {
                 KeyCode::Char('A') => {
                     self.state = AppState::Navigating(selected_row, self.headers.len() - 1);
                 }
+
+                // STATE MANAGEMENT
                 KeyCode::Char('u') => {
                     self.restore_last_state();
                 }
+
+                // CREATING AND DELETING ROWS AND COLUMNS
                 KeyCode::Char('o') => {
                     self.insert_empty_row_after(selected_row);
                     self.state = AppState::Navigating(selected_row + 1, selected_col);
@@ -171,6 +166,8 @@ impl CSVModel {
                         self.state = AppState::Navigating(selected_row, selected_col);
                     }
                 }
+
+                // EDITING
                 KeyCode::Enter => {
                     self.save_current_state();
                     self.state = AppState::Editing(selected_row, selected_col);
@@ -179,6 +176,12 @@ impl CSVModel {
                     self.grid[selected_row][selected_col] = String::new();
                     self.state = AppState::Editing(selected_row, selected_col);
                 }
+                KeyCode::Char('H') => {
+                    self.save_current_state();
+                    self.state = AppState::EditingHeader(selected_col);
+                }
+
+                // QUIT
                 KeyCode::Char('q') => {
                     self.save_changes_to_file().unwrap();
                     self.running = false;
@@ -190,10 +193,22 @@ impl CSVModel {
                     self.state = AppState::Navigating(row, col);
                 }
                 KeyCode::Backspace => {
-                    self.pop_char_from_record();
+                    self.grid[row][col].pop();
                 }
                 KeyCode::Char(char) => {
-                    self.append_char_to_record(char);
+                    self.grid[row][col].push(char);
+                }
+                _ => {}
+            },
+            AppState::EditingHeader(col) => match key {
+                KeyCode::Enter => {
+                    self.state = AppState::Navigating(0, col);
+                }
+                KeyCode::Backspace => {
+                    self.headers[col].pop();
+                }
+                KeyCode::Char(char) => {
+                    self.headers[col].push(char);
                 }
                 _ => {}
             },
@@ -239,8 +254,15 @@ impl CSVView {
             let header_cells = std::iter::once(
                 Cell::from("").style(Style::default().add_modifier(Modifier::BOLD)),
             )
-            .chain(self.model.headers.iter().map(|h| {
-                Cell::from(h.clone()).style(Style::default().add_modifier(Modifier::BOLD))
+            .chain(self.model.headers.iter().enumerate().map(|(i, h)| {
+                match self.model.state {
+                    AppState::EditingHeader(col) if i == col => Cell::from(h.clone()).style(
+                        Style::default()
+                            .add_modifier(Modifier::BOLD)
+                            .bg(Color::Green),
+                    ),
+                    _ => Cell::from(h.clone()).style(Style::default().add_modifier(Modifier::BOLD)),
+                }
             }));
             let header_row = Row::new(header_cells).height(1);
 
@@ -257,6 +279,7 @@ impl CSVView {
                             AppState::Editing(_, _) => {
                                 cell = cell.style(Style::default().bg(Color::Green));
                             }
+                            _ => {}
                         }
                     }
                     cell
