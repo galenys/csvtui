@@ -65,6 +65,12 @@ impl CSVModel {
         }
     }
 
+    fn pop_char_from_record(&mut self) {
+        if let AppState::Editing(row, col) = self.state {
+            self.grid[row][col].pop();
+        }
+    }
+
     fn save_changes_to_file(&self) -> Result<()> {
         let file = File::create(&self.file_path)?;
         let mut wtr = Writer::from_writer(file);
@@ -114,6 +120,9 @@ impl CSVModel {
                 KeyCode::Enter => {
                     self.state = AppState::Navigating(row, col);
                 }
+                KeyCode::Backspace => {
+                    self.pop_char_from_record();
+                }
                 KeyCode::Char(char) => {
                     self.append_char_to_record(char);
                 }
@@ -158,7 +167,6 @@ impl CSVView {
                 )
                 .collect::<Vec<_>>();
 
-            // Create header cells with custom styling
             let header_cells = self.model.headers.iter().map(|h| {
                 Cell::from(h.clone()).style(Style::default().add_modifier(Modifier::BOLD))
             });
@@ -171,7 +179,14 @@ impl CSVView {
                 let cells = item.iter().enumerate().map(|(j, c)| {
                     let mut cell = Cell::from(c.clone());
                     if i == selected_row && j == selected_col {
-                        cell = cell.style(Style::default().bg(Color::Blue));
+                        match self.model.state {
+                            AppState::Navigating(_, _) => {
+                                cell = cell.style(Style::default().bg(Color::Blue));
+                            }
+                            AppState::Editing(_, _) => {
+                                cell = cell.style(Style::default().bg(Color::Green));
+                            }
+                        }
                     }
                     cell
                 });
