@@ -24,6 +24,7 @@ pub struct CSVModel {
     grid: Vec<Vec<String>>,
     state: AppState,
     running: bool,
+    working_states: Vec<Vec<Vec<String>>>,
 }
 
 impl CSVModel {
@@ -49,6 +50,7 @@ impl CSVModel {
             grid,
             state: AppState::Navigating(0, 0),
             running: true,
+            working_states: Vec::new(),
         })
     }
 
@@ -72,17 +74,34 @@ impl CSVModel {
     }
 
     fn insert_empty_row_after(&mut self, row: usize) {
+        self.save_current_state();
         let empty_row = vec![String::new(); self.headers.len()];
         self.grid.insert(row + 1, empty_row);
     }
 
     fn insert_empty_row_before(&mut self, row: usize) {
+        self.save_current_state();
         let empty_row = vec![String::new(); self.headers.len()];
         self.grid.insert(row, empty_row);
     }
 
     fn delete_row(&mut self, row: usize) {
+        self.save_current_state();
         self.grid.remove(row);
+    }
+
+    fn save_current_state(&mut self) {
+        let current_state = self.grid.clone();
+        self.working_states.push(current_state);
+    }
+
+    fn restore_last_state(&mut self) {
+        if let Some(last_state) = self.working_states.pop() {
+            self.grid = last_state;
+            if self.get_current_row_and_col().0 >= self.grid.len() {
+                self.state = AppState::Navigating(self.grid.len() - 1, 0);
+            }
+        }
     }
 
     fn save_changes_to_file(&self) -> Result<()> {
@@ -121,13 +140,16 @@ impl CSVModel {
                         self.state = AppState::Navigating(selected_row, selected_col + 1);
                     }
                 }
+                KeyCode::Char('u') => {
+                    self.restore_last_state();
+                }
                 KeyCode::Char('o') => {
                     self.insert_empty_row_after(selected_row);
-                    self.state = AppState::Editing(selected_row + 1, selected_col);
+                    self.state = AppState::Navigating(selected_row + 1, selected_col);
                 }
                 KeyCode::Char('O') => {
                     self.insert_empty_row_before(selected_row);
-                    self.state = AppState::Editing(selected_row, selected_col);
+                    self.state = AppState::Navigating(selected_row, selected_col);
                 }
                 KeyCode::Char('d') => {
                     self.delete_row(selected_row);
@@ -138,6 +160,7 @@ impl CSVModel {
                     }
                 }
                 KeyCode::Enter => {
+                    self.save_current_state();
                     self.state = AppState::Editing(selected_row, selected_col);
                 }
                 KeyCode::Char('r') => {
