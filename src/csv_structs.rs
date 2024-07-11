@@ -27,6 +27,7 @@ pub struct CSVModel {
     state: AppState,
     running: bool,
     working_states: Vec<(Vec<String>, Vec<Vec<String>>)>,
+    copy_buffer: Option<String>,
 }
 
 impl CSVModel {
@@ -53,6 +54,7 @@ impl CSVModel {
             state: AppState::Navigating(0, 0),
             running: true,
             working_states: Vec::new(),
+            copy_buffer: None,
         })
     }
 
@@ -118,6 +120,26 @@ impl CSVModel {
             if self.get_current_row_and_col().0 >= self.grid.len() {
                 self.state = AppState::Navigating(self.grid.len() - 1, 0);
             }
+        }
+    }
+
+    fn copy_selected_cell_to_buffer(&mut self) {
+        match self.state {
+            AppState::Navigating(row, col) => {
+                self.copy_buffer = Some(self.grid[row][col].clone());
+            }
+            _ => {}
+        }
+    }
+
+    fn paste_from_buffer(&mut self) {
+        match self.state {
+            AppState::Navigating(row, col) => {
+                if let Some(buffer) = &self.copy_buffer {
+                    self.grid[row][col] = buffer.clone();
+                }
+            }
+            _ => {}
         }
     }
 
@@ -239,6 +261,13 @@ impl CSVModel {
                 KeyCode::Char('H') => {
                     self.save_current_state();
                     self.state = AppState::EditingHeader(selected_col);
+                }
+                KeyCode::Char('y') => {
+                    self.copy_selected_cell_to_buffer();
+                }
+                KeyCode::Char('p') => {
+                    self.save_current_state();
+                    self.paste_from_buffer();
                 }
 
                 // QUIT
