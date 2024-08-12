@@ -1,3 +1,4 @@
+use chrono::{self};
 use crossterm::event::{self, KeyCode, KeyEvent};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -143,6 +144,16 @@ impl CSVModel {
         }
     }
 
+    fn paste_date(&mut self) {
+        match self.state {
+            AppState::Navigating(row, col) => {
+                self.grid[row][col] =
+                    format!("{}", chrono::Local::now().format("%Y-%m-%d").to_string());
+            }
+            _ => {}
+        }
+    }
+
     fn save_changes_to_file(&self) -> Result<()> {
         let file = File::create(&self.file_path)?;
         let mut wtr = Writer::from_writer(file);
@@ -268,6 +279,9 @@ impl CSVModel {
                 KeyCode::Char('p') => {
                     self.save_current_state();
                     self.paste_from_buffer();
+                }
+                KeyCode::Char('.') => {
+                    self.paste_date();
                 }
 
                 // QUIT
